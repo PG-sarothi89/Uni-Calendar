@@ -1,0 +1,18 @@
+# Compiled Java class files
+out/
+bin/
+*.class
+
+# Runtime generated cache
+data/unitrack_store.dat
+
+# Temporary build & testing files
+sources.txt
+*.log
+
+# IDE & OS files
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
