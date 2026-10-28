@@ -17,6 +17,10 @@ public class ModernPasswordField extends JPasswordField {
     private boolean showingPassword = false;
     private Color activeBorderColor = UIUtils.LOGIN_INPUT_BORDER;
 
+    public ModernPasswordField() {
+        this("");
+    }
+
     public ModernPasswordField(String placeholder) {
         this.placeholder = placeholder;
         setFont(UIUtils.FONT_BODY);

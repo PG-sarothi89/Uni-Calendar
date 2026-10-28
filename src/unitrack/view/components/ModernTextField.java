@@ -17,6 +17,10 @@ public class ModernTextField extends JTextField {
     private final int radius = 16;
     private Color activeBorderColor = UIUtils.LOGIN_INPUT_BORDER;
 
+    public ModernTextField() {
+        this("");
+    }
+
     public ModernTextField(String placeholder) {
         this.placeholder = placeholder;
         setFont(UIUtils.FONT_BODY);

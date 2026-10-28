@@ -279,7 +279,7 @@ public class LoginView extends JPanel {
 
         JButton studentBtn = createRolePillButton("Student", "alex@uni.edu", "pass123");
         JButton teacherBtn = createRolePillButton("Teacher", "dr.sarah@uni.edu", "pass123");
-        JButton adminBtn = createRolePillButton("Admin", "admin@uni.edu", "admin123");
+        JButton adminBtn = createRolePillButton("Batch Advisor", "admin@uni.edu", "admin123");
 
         demoPanel.add(studentBtn);
         demoPanel.add(teacherBtn);

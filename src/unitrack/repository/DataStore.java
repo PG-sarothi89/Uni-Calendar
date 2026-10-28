@@ -23,12 +23,14 @@ public class DataStore {
     private final Map<Integer, Course> courses = new ConcurrentHashMap<>();
     private final Map<Integer, CalendarEvent> events = new ConcurrentHashMap<>();
     private final Map<Integer, TodoItem> todoItems = new ConcurrentHashMap<>();
+    private final Map<Integer, ConsultancyRequest> consultancyRequests = new ConcurrentHashMap<>();
 
     // ID generators
     private final AtomicInteger nextUserId = new AtomicInteger(100);
     private final AtomicInteger nextCourseId = new AtomicInteger(200);
     private final AtomicInteger nextEventId = new AtomicInteger(300);
     private final AtomicInteger nextTodoId = new AtomicInteger(400);
+    private final AtomicInteger nextConsultancyId = new AtomicInteger(500);
 
     private DataStore() {
         if (!loadFromFile()) {
@@ -45,11 +47,11 @@ public class DataStore {
     }
 
     private void initSeedData() {
-        // 1. Seed Users (Student, Teacher, Admin)
+        // 1. Seed Users (Student, Teacher, Batch Advisor/Admin)
         Student student = new Student(1, "Alex Morgan", "alex@uni.edu", "pass123");
-        Teacher teacher1 = new Teacher(2, "Dr. Sarah Jenkins", "dr.sarah@uni.edu", "pass123");
-        Teacher teacher2 = new Teacher(3, "Prof. Alan Turing", "alan.turing@uni.edu", "pass123");
-        Admin admin = new Admin(4, "System Administrator", "admin@uni.edu", "admin123");
+        Teacher teacher1 = new Teacher(2, "Dr. Sarah Jenkins", "dr.sarah@uni.edu", "pass123", "Department of Computer Science & Engineering");
+        Teacher teacher2 = new Teacher(3, "Prof. Alan Turing", "alan.turing@uni.edu", "pass123", "Department of Computer Science & Engineering");
+        Admin admin = new Admin(4, "Prof. Tahmina Sultana", "admin@uni.edu", "admin123");
 
         users.put(student.getId(), student);
         users.put(teacher1.getId(), teacher1);
@@ -99,7 +101,7 @@ public class DataStore {
         int year = today.getYear();
         int month = today.getMonthValue();
 
-        // Notes for the 10th (exactly matching Reference Image schedule)
+        // Notes for the 10th (matching Reference Image schedule)
         addEventSeed(new CalendarEvent(nextEventId.getAndIncrement(),
                 "Start with daily Ui",
                 "Review desktop UI layouts and interactive calendar components.",
@@ -133,7 +135,7 @@ public class DataStore {
                 LocalTime.of(10, 0), LocalTime.of(12, 0),
                 mathCourse.getId(), teacher1.getId(), "Exam Hall B", "Midterm_Topics.pdf"));
 
-        // Event for TODAY (if today is not the 10th or 14th, seed today too)
+        // Event for TODAY (if today is not the 10th or 14th)
         if (today.getDayOfMonth() != 10 && today.getDayOfMonth() != 14) {
             addEventSeed(new CalendarEvent(nextEventId.getAndIncrement(),
                     "Start with daily Ui",
@@ -186,6 +188,46 @@ public class DataStore {
                 "Review Java Concurrency & ScheduledExecutorService", TodoItem.Priority.MEDIUM, today.plusDays(4), false));
         addTodoSeed(new TodoItem(nextTodoId.getAndIncrement(), student.getId(),
                 "Read Bloch Effective Java: Chapter on Generics", TodoItem.Priority.LOW, today.plusDays(7), false));
+
+        // 5. Seed Consultancy Bookings (Demonstrates Student-Teacher workflow)
+        // Request A: Pending Request from Student Alex Morgan to Dr. Sarah Jenkins
+        ConsultancyRequest pendingReq = new ConsultancyRequest(
+                nextConsultancyId.getAndIncrement(),
+                student.getId(), student.getName(),
+                teacher1.getId(), teacher1.getName(),
+                today.plusDays(1), LocalTime.of(11, 0), LocalTime.of(11, 30),
+                "OODP Design Patterns & Swing Architecture Discussion"
+        );
+        consultancyRequests.put(pendingReq.getId(), pendingReq);
+
+        // Request B: Approved Request from Alex Morgan with Prof. Alan Turing
+        int approvedEventId = nextEventId.getAndIncrement();
+        ConsultancyRequest approvedReq = new ConsultancyRequest(
+                nextConsultancyId.getAndIncrement(),
+                student.getId(), student.getName(),
+                teacher2.getId(), teacher2.getName(),
+                today, LocalTime.of(14, 0), LocalTime.of(14, 30),
+                "Graph Traversal BFS/DFS & Algorithm Analysis"
+        );
+        approvedReq.setStatus(ConsultancyRequest.Status.APPROVED);
+        approvedReq.setResponseNote("Approved! Please visit Faculty Room 205.");
+        approvedReq.setCalendarEventId(approvedEventId);
+        consultancyRequests.put(approvedReq.getId(), approvedReq);
+
+        // Calendar event for the approved consultancy (shared on student and teacher calendars)
+        addEventSeed(new CalendarEvent(
+                approvedEventId,
+                "Consultancy: Graph Traversal BFS/DFS",
+                "Student: Alex Morgan | Faculty: Prof. Alan Turing\nApproved! Please visit Faculty Room 205.",
+                EventType.CONSULTANCY,
+                today,
+                LocalTime.of(14, 0), LocalTime.of(14, 30),
+                dsaCourse.getId(),
+                teacher2.getId(),
+                student.getId(),
+                "Faculty Room 205",
+                null
+        ));
     }
 
     private void addEventSeed(CalendarEvent event) {
@@ -212,6 +254,10 @@ public class DataStore {
         return todoItems;
     }
 
+    public Map<Integer, ConsultancyRequest> getConsultancyRequests() {
+        return consultancyRequests;
+    }
+
     public int getNextUserId() {
         return nextUserId.getAndIncrement();
     }
@@ -228,6 +274,10 @@ public class DataStore {
         return nextTodoId.getAndIncrement();
     }
 
+    public int getNextConsultancyId() {
+        return nextConsultancyId.getAndIncrement();
+    }
+
     public synchronized void saveToFile() {
         File dir = new File("data");
         if (!dir.exists()) {
@@ -238,6 +288,7 @@ public class DataStore {
             oos.writeObject(new ArrayList<>(courses.values()));
             oos.writeObject(new ArrayList<>(events.values()));
             oos.writeObject(new ArrayList<>(todoItems.values()));
+            oos.writeObject(new ArrayList<>(consultancyRequests.values()));
         } catch (IOException e) {
             System.err.println("Notice: Could not save data cache to file: " + e.getMessage());
         }
@@ -254,15 +305,44 @@ public class DataStore {
             List<CalendarEvent> eventList = (List<CalendarEvent>) ois.readObject();
             List<TodoItem> todoList = (List<TodoItem>) ois.readObject();
 
+            List<ConsultancyRequest> consultancyList = null;
+            try {
+                consultancyList = (List<ConsultancyRequest>) ois.readObject();
+            } catch (Exception e) {
+                // Older save file without consultancy list
+            }
+
             users.clear();
             courses.clear();
             events.clear();
             todoItems.clear();
+            consultancyRequests.clear();
 
-            for (User u : userList) users.put(u.getId(), u);
+            for (User u : userList) {
+                // Ensure Admin displays as Batch Advisor
+                if (u.getRole() == Role.ADMIN && "System Administrator".equals(u.getName())) {
+                    u.setName("Prof. Tahmina Sultana");
+                }
+                users.put(u.getId(), u);
+            }
             for (Course c : courseList) courses.put(c.getId(), c);
             for (CalendarEvent e : eventList) events.put(e.getId(), e);
             for (TodoItem t : todoList) todoItems.put(t.getId(), t);
+
+            if (consultancyList != null && !consultancyList.isEmpty()) {
+                for (ConsultancyRequest r : consultancyList) {
+                    consultancyRequests.put(r.getId(), r);
+                }
+            } else {
+                // Seed initial sample consultancies if missing
+                LocalDate today = LocalDate.now();
+                ConsultancyRequest sample1 = new ConsultancyRequest(
+                        501, 1, "Alex Morgan", 2, "Dr. Sarah Jenkins",
+                        today.plusDays(1), LocalTime.of(11, 0), LocalTime.of(11, 30),
+                        "OODP Design Patterns & Swing Architecture Discussion"
+                );
+                consultancyRequests.put(sample1.getId(), sample1);
+            }
 
             return true;
         } catch (Exception e) {

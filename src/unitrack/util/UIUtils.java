@@ -1,13 +1,14 @@
 package unitrack.util;
 
-import java.awt.*;
-import java.awt.geom.Ellipse2D;
-import java.awt.geom.Path2D;
-import java.awt.geom.RoundRectangle2D;
+import javax.imageio.ImageIO;
 import javax.swing.*;
+import java.awt.*;
+import java.awt.geom.Path2D;
+import java.awt.image.BufferedImage;
+import java.io.File;
 
 /**
- * Step 22: UI Styling, Graphic Vectors, and Palette Constants
+ * Step 22: UI Styling, Graphic Vectors, Shared Backgrounds, and Palette Constants
  * Matches the reference images (login-page-08 and calendar 4085ecd54ccf6faea73a78c8f7ecb393).
  */
 public class UIUtils {
@@ -48,6 +49,67 @@ public class UIUtils {
     public static final Font FONT_BODY_BOLD = new Font("Segoe UI", Font.BOLD, 12);
     public static final Font FONT_SMALL = new Font("Segoe UI", Font.PLAIN, 11);
     public static final Font FONT_SMALL_BOLD = new Font("Segoe UI", Font.BOLD, 11);
+
+    // Cached Scenic Background Photo
+    private static BufferedImage sharedBackgroundImage;
+    private static boolean imageLoaded = false;
+
+    /**
+     * Retrieves or loads the scenic Login Page background photo
+     */
+    public static synchronized BufferedImage getSharedBackgroundImage() {
+        if (!imageLoaded) {
+            try {
+                File f = new File("Resource/Reference Immages/Login Page Photo.jpg");
+                if (!f.exists()) f = new File("Resource/Login Page Photo.jpg");
+                if (!f.exists()) f = new File("Resource/Reference Immages/808930099_1052021000986872_7495257778687809139_n.jpg");
+                if (f.exists()) {
+                    sharedBackgroundImage = ImageIO.read(f);
+                }
+            } catch (Exception e) {
+                System.err.println("Notice: Could not load scenic background: " + e.getMessage());
+            }
+            imageLoaded = true;
+        }
+        return sharedBackgroundImage;
+    }
+
+    /**
+     * Paints the shared atmospheric background across views (Cover scale + dark overlay + soft vignette)
+     */
+    public static void paintScenicBackground(Graphics g, int w, int h) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        enableAntiAliasing(g2);
+
+        BufferedImage img = getSharedBackgroundImage();
+        if (img != null) {
+            double scale = Math.max((double) w / img.getWidth(), (double) h / img.getHeight());
+            int drawW = (int) (img.getWidth() * scale);
+            int drawH = (int) (img.getHeight() * scale);
+            int drawX = (w - drawW) / 2;
+            int drawY = (h - drawH) / 2;
+            g2.drawImage(img, drawX, drawY, drawW, drawH, null);
+
+            // Dark atmospheric overlay for readability and contrast
+            g2.setColor(new Color(12, 16, 28, 140));
+            g2.fillRect(0, 0, w, h);
+
+            // Subtle border vignette
+            RadialGradientPaint vignette = new RadialGradientPaint(
+                    w / 2.0f, h / 2.0f, Math.max(w, h) * 0.75f,
+                    new float[]{0.0f, 0.8f, 1.0f},
+                    new Color[]{new Color(0, 0, 0, 0), new Color(0, 0, 0, 70), new Color(0, 0, 0, 180)}
+            );
+            g2.setPaint(vignette);
+            g2.fillRect(0, 0, w, h);
+        } else {
+            // High-grade dark navy gradient fallback
+            GradientPaint gp = new GradientPaint(0, 0, new Color(25, 30, 50), 0, h, new Color(12, 15, 25));
+            g2.setPaint(gp);
+            g2.fillRect(0, 0, w, h);
+        }
+        g2.dispose();
+    }
 
     /**
      * Applies high quality anti-aliasing hints to Graphics2D

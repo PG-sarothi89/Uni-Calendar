@@ -6,11 +6,11 @@ import java.time.LocalTime;
 
 /**
  * Step 7: Central Calendar Event Entity
- * Models lectures, class tests, assignments, exams, and institutional events.
+ * Models lectures, class tests, assignments, exams, personal tasks, and student-teacher consultancy sessions.
  * Uses modern java.time types (LocalDate, LocalTime).
  */
 public class CalendarEvent implements Serializable, Comparable<CalendarEvent> {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 
     private int id;
     private String title;
@@ -19,14 +19,21 @@ public class CalendarEvent implements Serializable, Comparable<CalendarEvent> {
     private LocalDate date;
     private LocalTime startTime;
     private LocalTime endTime;
-    private Integer courseId;      // Optional: Links to Course model if academic
-    private int createdBy;         // User ID of author
-    private String location;       // e.g., "Room 402" or "Online"
+    private Integer courseId;        // Optional: Links to Course model if academic
+    private int createdBy;           // User ID of author/faculty
+    private Integer attendeeId;      // Optional: User ID of student/attendee (for 1-on-1 consultancy)
+    private String location;         // e.g., "Room 402", "Faculty Room 214", or "Online"
     private String attachedFileName; // e.g. "Lecture_04_Polymorphism.pdf"
 
     public CalendarEvent(int id, String title, String description, EventType type,
                          LocalDate date, LocalTime startTime, LocalTime endTime,
                          Integer courseId, int createdBy, String location, String attachedFileName) {
+        this(id, title, description, type, date, startTime, endTime, courseId, createdBy, null, location, attachedFileName);
+    }
+
+    public CalendarEvent(int id, String title, String description, EventType type,
+                         LocalDate date, LocalTime startTime, LocalTime endTime,
+                         Integer courseId, int createdBy, Integer attendeeId, String location, String attachedFileName) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -36,6 +43,7 @@ public class CalendarEvent implements Serializable, Comparable<CalendarEvent> {
         this.endTime = endTime;
         this.courseId = courseId;
         this.createdBy = createdBy;
+        this.attendeeId = attendeeId;
         this.location = location;
         this.attachedFileName = attachedFileName;
     }
@@ -111,6 +119,14 @@ public class CalendarEvent implements Serializable, Comparable<CalendarEvent> {
 
     public void setCreatedBy(int createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Integer getAttendeeId() {
+        return attendeeId;
+    }
+
+    public void setAttendeeId(Integer attendeeId) {
+        this.attendeeId = attendeeId;
     }
 
     public String getLocation() {

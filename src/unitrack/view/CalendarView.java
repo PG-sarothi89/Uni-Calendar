@@ -5,19 +5,24 @@ import unitrack.model.User;
 import unitrack.networking.AcademicServerDaemon;
 import unitrack.networking.CalendarSyncClient;
 import unitrack.service.AuthService;
+import unitrack.service.ConsultancyService;
 import unitrack.util.UIUtils;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.time.LocalDate;
 
 /**
  * Step 36: Main Calendar View
  *
- * Hosts the floating, unified CalendarCardPanel matching the reference UI,
- * along with a sleek, minimalist floating top navigation bar providing access to
- * Syllabus Progress, Personal Tasks, TCP Sync, and Logout.
+ * Implements:
+ *   1. Consistent scenic background photo across every page using UIUtils.paintScenicBackground.
+ *   2. Floating unified CalendarCardPanel centered in the viewport.
+ *   3. Harmonized translucent glassmorphism navigation buttons with Segoe UI typography.
+ *   4. Student-Teacher Consultancy booking and Batch Advisor administrative controls.
  */
 public class CalendarView extends JPanel {
 
@@ -29,6 +34,10 @@ public class CalendarView extends JPanel {
     private final CalendarViewListener viewListener;
     private final AcademicServerDaemon serverDaemon;
     private final CalendarCardPanel cardPanel;
+    private final ConsultancyService consultancyService = ConsultancyService.getInstance();
+
+    // Top action bar button references for dynamic badge updates
+    private JButton consultancyBtn;
 
     public CalendarView(CalendarViewListener listener, AcademicServerDaemon serverDaemon) {
         this.viewListener = listener;
@@ -36,7 +45,7 @@ public class CalendarView extends JPanel {
         this.serverDaemon = serverDaemon;
 
         setLayout(new BorderLayout());
-        setBackground(UIUtils.WINDOW_BG); // Soft cool grey background from reference
+        setOpaque(true);
 
         // 1. Sleek Floating Top Action Bar
         add(buildFloatingTopBar(), BorderLayout.NORTH);
@@ -62,13 +71,22 @@ public class CalendarView extends JPanel {
         add(centerWrapper, BorderLayout.CENTER);
     }
 
+    /**
+     * Paints the scenic background image across every page with dark atmospheric overlay
+     */
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        UIUtils.paintScenicBackground(g, getWidth(), getHeight());
+    }
+
     private JPanel buildFloatingTopBar() {
         JPanel bar = new JPanel(new BorderLayout(0, 0));
         bar.setOpaque(false);
         bar.setBorder(new EmptyBorder(14, 30, 0, 30));
 
-        // Brand on Left: Green Diamond + Title
-        JPanel brandPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        // Brand on Left: Green Diamond + Title in high-contrast crisp white/silver
+        JPanel brandPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         brandPanel.setOpaque(false);
 
         JComponent diamondIcon = new JComponent() {
@@ -76,41 +94,67 @@ public class CalendarView extends JPanel {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 UIUtils.enableAntiAliasing(g2);
-                g2.setColor(new Color(46, 125, 50));
-                int[] xPoints = {6, 12, 6, 0};
-                int[] yPoints = {0, 7, 14, 7};
+                g2.setColor(new Color(76, 175, 80)); // Vibrant emerald green
+                int[] xPoints = {7, 14, 7, 0};
+                int[] yPoints = {0, 8, 16, 8};
                 g2.fillPolygon(xPoints, yPoints, 4);
                 g2.dispose();
             }
         };
-        diamondIcon.setPreferredSize(new Dimension(14, 16));
+        diamondIcon.setPreferredSize(new Dimension(16, 18));
 
         JLabel brandText = new JLabel("UniTrack — Smart Academic Calendar");
-        brandText.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        brandText.setForeground(new Color(45, 50, 65));
+        brandText.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        brandText.setForeground(new Color(245, 247, 252));
 
         brandPanel.add(diamondIcon);
         brandPanel.add(brandText);
 
         // Action Buttons on Right
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         actions.setOpaque(false);
 
         // User role pill
-        String roleTitle = currentUser != null ? currentUser.getName() + " [" + currentUser.getRole() + "]" : "Guest";
+        String roleTitle = currentUser != null
+                ? currentUser.getName() + " [" + currentUser.getRole().getDisplayName() + "]"
+                : "Guest";
         JLabel rolePill = new JLabel("  " + roleTitle + "  ");
         rolePill.setFont(UIUtils.FONT_SMALL_BOLD);
-        rolePill.setForeground(new Color(60, 65, 80));
-        rolePill.setBackground(Color.WHITE);
+        rolePill.setForeground(new Color(230, 235, 245));
+        rolePill.setBackground(new Color(20, 25, 45, 200));
         rolePill.setOpaque(true);
         rolePill.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(215, 220, 230), 1, true),
-                new EmptyBorder(4, 10, 4, 10)
+                BorderFactory.createLineBorder(new Color(255, 255, 255, 45), 1, true),
+                new EmptyBorder(5, 12, 5, 12)
         ));
         actions.add(rolePill);
 
-        // Syllabus Tracker Button
-        JButton syllabusBtn = createTopBarButton("Syllabus Progress");
+        // -------------------------------------------------------------
+        // Feature 1: Student-Teacher Consultancy Button
+        // -------------------------------------------------------------
+        if (currentUser != null && currentUser.isStudent()) {
+            consultancyBtn = createAccentPillButton("💬 Book Consultancy", UIUtils.LOGIN_ACCENT);
+            consultancyBtn.addActionListener(e -> openConsultancyDialog());
+            actions.add(consultancyBtn);
+        } else if (currentUser != null && currentUser.isTeacher()) {
+            int pending = consultancyService.getPendingCountForTeacher(currentUser.getId());
+            String btnText = pending > 0 ? "💬 Consultancies (" + pending + ")" : "💬 Consultancies";
+            consultancyBtn = createAccentPillButton(btnText, pending > 0 ? new Color(245, 124, 0) : new Color(35, 45, 75));
+            consultancyBtn.addActionListener(e -> openConsultancyDialog());
+            actions.add(consultancyBtn);
+        } else if (currentUser != null && currentUser.isBatchAdvisor()) {
+            // Batch Advisor Console Button
+            JButton advisorBtn = createAccentPillButton("🎓 Batch Advisor Console", UIUtils.LOGIN_ACCENT);
+            advisorBtn.addActionListener(e -> openBatchAdvisorDialog());
+            actions.add(advisorBtn);
+
+            consultancyBtn = createGlassPillButton("💬 All Consultancies");
+            consultancyBtn.addActionListener(e -> openConsultancyDialog());
+            actions.add(consultancyBtn);
+        }
+
+        // Syllabus Progress Tracker Button
+        JButton syllabusBtn = createGlassPillButton("Syllabus Progress");
         syllabusBtn.addActionListener(e -> {
             Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
             SyllabusDialog dialog = new SyllabusDialog(owner);
@@ -119,7 +163,7 @@ public class CalendarView extends JPanel {
         actions.add(syllabusBtn);
 
         // Personal To-Do Button
-        JButton tasksBtn = createTopBarButton("My Tasks");
+        JButton tasksBtn = createGlassPillButton("My Tasks");
         tasksBtn.addActionListener(e -> {
             Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
             TodoDialog dialog = new TodoDialog(owner);
@@ -128,13 +172,13 @@ public class CalendarView extends JPanel {
         actions.add(tasksBtn);
 
         // Sync Feed Button
-        JButton syncBtn = createTopBarButton("Sync Feed");
+        JButton syncBtn = createGlassPillButton("Sync Feed");
         syncBtn.addActionListener(e -> onSyncClicked());
         actions.add(syncBtn);
 
         // Logout Button
-        JButton logoutBtn = createTopBarButton("Logout");
-        logoutBtn.setForeground(new Color(210, 50, 50));
+        JButton logoutBtn = createGlassPillButton("Logout");
+        logoutBtn.setForeground(new Color(255, 120, 120));
         logoutBtn.addActionListener(e -> {
             AuthService.getInstance().logout();
             if (viewListener != null) {
@@ -148,18 +192,92 @@ public class CalendarView extends JPanel {
         return bar;
     }
 
-    private JButton createTopBarButton(String label) {
+    /**
+     * Creates a translucent frosted glass pill button for the top navigation bar
+     */
+    private JButton createGlassPillButton(String label) {
         JButton btn = new JButton(label);
         btn.setFont(UIUtils.FONT_SMALL_BOLD);
-        btn.setForeground(new Color(70, 75, 90));
-        btn.setBackground(Color.WHITE);
+        btn.setForeground(new Color(240, 245, 255));
+        btn.setBackground(new Color(25, 32, 54, 195));
         btn.setFocusPainted(false);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btn.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(215, 220, 230), 1, true),
+                BorderFactory.createLineBorder(new Color(255, 255, 255, 45), 1, true),
                 new EmptyBorder(5, 12, 5, 12)
         ));
+
+        btn.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                btn.setBackground(new Color(45, 58, 92, 230));
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                btn.setBackground(new Color(25, 32, 54, 195));
+            }
+        });
         return btn;
+    }
+
+    /**
+     * Creates a prominent accent pill button (e.g. for consultancy or advisor actions)
+     */
+    private JButton createAccentPillButton(String label, Color accentColor) {
+        JButton btn = new JButton(label);
+        btn.setFont(UIUtils.FONT_SMALL_BOLD);
+        btn.setForeground(Color.WHITE);
+        btn.setBackground(accentColor);
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(255, 255, 255, 60), 1, true),
+                new EmptyBorder(5, 12, 5, 12)
+        ));
+
+        btn.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                btn.setBackground(accentColor.darker());
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                btn.setBackground(accentColor);
+            }
+        });
+        return btn;
+    }
+
+    private void openConsultancyDialog() {
+        Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+        ConsultancyDialog dialog = new ConsultancyDialog(owner);
+        dialog.setVisible(true);
+
+        if (dialog.isChanged()) {
+            cardPanel.repaint();
+            updateConsultancyBadge();
+        }
+    }
+
+    private void openBatchAdvisorDialog() {
+        Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+        BatchAdvisorDialog dialog = new BatchAdvisorDialog(owner);
+        dialog.setVisible(true);
+
+        if (dialog.isChanged()) {
+            cardPanel.repaint();
+        }
+    }
+
+    private void updateConsultancyBadge() {
+        if (currentUser != null && currentUser.isTeacher() && consultancyBtn != null) {
+            int pending = consultancyService.getPendingCountForTeacher(currentUser.getId());
+            String btnText = pending > 0 ? "💬 Consultancies (" + pending + ")" : "💬 Consultancies";
+            consultancyBtn.setText(btnText);
+            consultancyBtn.setBackground(pending > 0 ? new Color(245, 124, 0) : new Color(35, 45, 75));
+        }
     }
 
     private void openEventDialog(CalendarEvent existingEvent, LocalDate defaultDate) {

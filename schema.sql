@@ -10,13 +10,14 @@ CREATE DATABASE IF NOT EXISTS unitrack_db
 
 USE unitrack_db;
 
--- 1. USERS Table (Base entity for Students, Teachers, and Administrators)
+-- 1. USERS Table (Base entity for Students, Teachers, and Batch Advisor)
 CREATE TABLE IF NOT EXISTS USERS (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(120) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL,
+    department VARCHAR(120) DEFAULT 'Department of Computer Science & Engineering',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_user_email (email)
 ) ENGINE=InnoDB;
@@ -63,12 +64,13 @@ CREATE TABLE IF NOT EXISTS CALENDAR_EVENTS (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(150) NOT NULL,
     description TEXT,
-    event_type ENUM('LECTURE', 'TEST', 'ASSIGNMENT', 'EXAM', 'HOLIDAY', 'TASK') NOT NULL,
+    event_type ENUM('LECTURE', 'TEST', 'ASSIGNMENT', 'EXAM', 'HOLIDAY', 'CONSULTANCY', 'TASK') NOT NULL,
     start_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     course_id INT NULL,
     created_by INT NOT NULL,
+    attendee_id INT NULL,             -- Student attendee for 1-on-1 consultancy sessions
     location VARCHAR(100),
     file_path VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -76,10 +78,34 @@ CREATE TABLE IF NOT EXISTS CALENDAR_EVENTS (
         REFERENCES COURSES(id) ON DELETE SET NULL,
     CONSTRAINT fk_event_creator FOREIGN KEY (created_by)
         REFERENCES USERS(id) ON DELETE CASCADE,
+    CONSTRAINT fk_event_attendee FOREIGN KEY (attendee_id)
+        REFERENCES USERS(id) ON DELETE SET NULL,
     INDEX idx_event_dates (start_date, start_time)
 ) ENGINE=InnoDB;
 
--- 6. SYLLABUS_TOPICS Table (Course curriculum topics with completion checkboxes)
+-- 6. CONSULTANCY_REQUESTS Table (Student office-hour requests submitted to faculty)
+CREATE TABLE IF NOT EXISTS CONSULTANCY_REQUESTS (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    teacher_id INT NOT NULL,
+    request_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    topic VARCHAR(255) NOT NULL,
+    status ENUM('PENDING', 'APPROVED', 'DECLINED') DEFAULT 'PENDING',
+    response_note VARCHAR(255),
+    calendar_event_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_consult_student FOREIGN KEY (student_id)
+        REFERENCES USERS(id) ON DELETE CASCADE,
+    CONSTRAINT fk_consult_teacher FOREIGN KEY (teacher_id)
+        REFERENCES USERS(id) ON DELETE CASCADE,
+    CONSTRAINT fk_consult_event FOREIGN KEY (calendar_event_id)
+        REFERENCES CALENDAR_EVENTS(id) ON DELETE SET NULL,
+    INDEX idx_consult_status (status)
+) ENGINE=InnoDB;
+
+-- 7. SYLLABUS_TOPICS Table (Course curriculum topics with completion checkboxes)
 CREATE TABLE IF NOT EXISTS SYLLABUS_TOPICS (
     id INT AUTO_INCREMENT PRIMARY KEY,
     course_id INT NOT NULL,
@@ -92,7 +118,7 @@ CREATE TABLE IF NOT EXISTS SYLLABUS_TOPICS (
     INDEX idx_topic_course_week (course_id, week_number)
 ) ENGINE=InnoDB;
 
--- 7. TODO_ITEMS Table (Private personal study task checklist for students)
+-- 8. TODO_ITEMS Table (Private personal study task checklist for students)
 CREATE TABLE IF NOT EXISTS TODO_ITEMS (
     id INT AUTO_INCREMENT PRIMARY KEY,
     owner_id INT NOT NULL,
@@ -109,11 +135,11 @@ CREATE TABLE IF NOT EXISTS TODO_ITEMS (
 -- ========================================================================
 -- Seed Initial Academic Data
 -- ========================================================================
-INSERT INTO USERS (name, email, password_hash, role) VALUES
-('Alex Morgan', 'alex@uni.edu', 'pass123', 'STUDENT'),
-('Dr. Sarah Jenkins', 'dr.sarah@uni.edu', 'pass123', 'TEACHER'),
-('Prof. Alan Turing', 'alan.turing@uni.edu', 'pass123', 'TEACHER'),
-('System Administrator', 'admin@uni.edu', 'admin123', 'ADMIN')
+INSERT INTO USERS (name, email, password_hash, role, department) VALUES
+('Alex Morgan', 'alex@uni.edu', 'pass123', 'STUDENT', 'Department of Computer Science & Engineering'),
+('Dr. Sarah Jenkins', 'dr.sarah@uni.edu', 'pass123', 'TEACHER', 'Department of Computer Science & Engineering'),
+('Prof. Alan Turing', 'alan.turing@uni.edu', 'pass123', 'TEACHER', 'Department of Computer Science & Engineering'),
+('Prof. Tahmina Sultana', 'admin@uni.edu', 'admin123', 'ADMIN', 'Department of Computer Science & Engineering')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
 
 INSERT INTO SEMESTERS (name, start_date, end_date, is_active) VALUES

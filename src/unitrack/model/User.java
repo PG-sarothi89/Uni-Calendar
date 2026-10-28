@@ -33,6 +33,19 @@ public abstract class User implements Serializable {
     public abstract boolean canUpdateSyllabus();
     public abstract boolean canBroadcastHolidays();
 
+    // Role verification helpers
+    public boolean isBatchAdvisor() {
+        return this.role == Role.ADMIN;
+    }
+
+    public boolean isTeacher() {
+        return this.role == Role.TEACHER;
+    }
+
+    public boolean isStudent() {
+        return this.role == Role.STUDENT;
+    }
+
     // Standard Getters and Setters (Encapsulation)
     public int getId() {
         return id;
@@ -70,8 +83,12 @@ public abstract class User implements Serializable {
         return role;
     }
 
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
     @Override
     public String toString() {
-        return name + " (" + role + ")";
+        return String.format("%s (%s) - %s", name, email, role.getDisplayName());
     }
 }
