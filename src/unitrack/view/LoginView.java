@@ -8,21 +8,32 @@ import unitrack.view.components.ModernPasswordField;
 import unitrack.view.components.ModernTextField;
 import unitrack.view.components.RoundedPanel;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.geom.Ellipse2D;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.Optional;
 
 /**
- * Step 27: Modern Split-Card Login View
- * Replicates the UI design from Reference Image: 'login-page-08.avif' / 'login-page-08.png'.
- * Features a 2-column card:
- *  - Left: Warm pastel peach background with an illustrated academic mascot and milestone pill.
- *  - Right: Clean card with brand header, inputs, remember checkbox, primary action button, and 1-click demo role switchers.
+ * Step 27: Modern Academic Login View with Scenic Background Photo
+ *
+ * Implements the user's reference specification:
+ *   - Background: Displays the high-resolution 'Login Page Photo.jpg' (UIU campus bridge at night),
+ *     aspect-filled across the entire window with an ambient dark atmospheric overlay.
+ *   - Central Floating Card (880x540):
+ *       • Left panel: Showcases the daytime university campus aerial view
+ *         ('808930099_1052021000986872_7495257778687809139_n.jpg') with rounded corners,
+ *         subtle dark gradient overlay, university branding, and milestone achievement pill.
+ *       • Right panel: Clean, modern white login card with rounded pill inputs, password visibility
+ *         eye toggle, primary 'Let's track →' button, and 1-click Demo Logins (Student / Teacher / Admin).
+ *   - Top-right corner: A sleek floating toggle button allowing the user to switch the background
+ *     between the Night Bridge view and the Day Campus view.
  */
 public class LoginView extends JPanel {
+
     public interface LoginSuccessListener {
         void onLoginSuccess(User user);
     }
@@ -30,20 +41,62 @@ public class LoginView extends JPanel {
     private final ModernTextField emailField;
     private final ModernPasswordField passwordField;
     private final JLabel errorLabel;
-    private LoginSuccessListener successListener;
+    private final LoginSuccessListener successListener;
+
+    // Loaded reference images
+    private BufferedImage nightBridgeImage;
+    private BufferedImage dayCampusImage;
+    private boolean isNightBackground = true; // Default: 'Login Page Photo.jpg' in background
 
     public LoginView(LoginSuccessListener listener) {
         this.successListener = listener;
-        setLayout(new GridBagLayout());
-        setBackground(new Color(236, 240, 245)); // Soft modern canvas background
+        setOpaque(true);
 
-        // Central Card: Width ~880, Height ~540
-        RoundedPanel mainCard = new RoundedPanel(24, Color.WHITE, new Color(220, 225, 235), 1.0f);
-        mainCard.setPreferredSize(new Dimension(880, 540));
-        mainCard.setLayout(new GridLayout(1, 2, 0, 0));
+        // Load reference photos
+        loadReferencePhotos();
 
         // ----------------------------------------------------
-        // LEFT COLUMN: Mascot & Motivational Illustration
+        // Central Card: Width 880, Height 540
+        // Custom panel with 24px rounded corners and smooth clip
+        // ----------------------------------------------------
+        JPanel mainCard = new JPanel(new GridLayout(1, 2, 0, 0)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                UIUtils.enableAntiAliasing(g2);
+
+                int w = getWidth();
+                int h = getHeight();
+
+                // Draw ambient soft drop shadow around card
+                for (int i = 4; i >= 1; i--) {
+                    g2.setColor(new Color(0, 0, 0, 15 * (5 - i)));
+                    g2.fillRoundRect(i, i + 2, w - i * 2, h - i * 2, 24, 24);
+                }
+
+                // Fill card body (right half white, left will be painted by leftPanel)
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, w, h, 24, 24);
+
+                g2.dispose();
+                super.paintComponent(g);
+            }
+
+            @Override
+            public void paint(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                UIUtils.enableAntiAliasing(g2);
+                // Clip all children to the card's 24px rounded boundary
+                g2.setClip(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 24, 24));
+                super.paint(g2);
+                g2.dispose();
+            }
+        };
+        mainCard.setPreferredSize(new Dimension(880, 540));
+        mainCard.setOpaque(false);
+
+        // ----------------------------------------------------
+        // LEFT COLUMN: University Campus Card Panel
         // ----------------------------------------------------
         JPanel leftPanel = new JPanel() {
             @Override
@@ -55,134 +108,85 @@ public class LoginView extends JPanel {
                 int w = getWidth();
                 int h = getHeight();
 
-                // 1. Warm pastel background with rounded left border
-                g2.setColor(UIUtils.LOGIN_LEFT_BG);
-                g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 24, 24));
-                // Fix right edge so it meets the right card cleanly
-                g2.fillRect(w - 24, 0, 24, h);
+                // Draw campus image
+                BufferedImage cardImg = isNightBackground ? dayCampusImage : nightBridgeImage;
 
-                // 2. Draw Soft Sunshine in upper right
-                int sunX = w - 95;
-                int sunY = 70;
-                g2.setColor(new Color(255, 214, 102));
-                g2.fill(new Ellipse2D.Float(sunX, sunY, 44, 44));
-                // Sun rays
-                g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                int[][] rayOffsets = {{-12, 0}, {56, 0}, {22, -12}, {22, 56}, {-6, -6}, {50, 50}, {-6, 50}, {50, -6}};
-                for (int[] offset : rayOffsets) {
-                    g2.drawLine(sunX + 22, sunY + 22, sunX + offset[0], sunY + offset[1]);
+                if (cardImg != null) {
+                    double scale = Math.max((double) w / cardImg.getWidth(), (double) h / cardImg.getHeight());
+                    int drawW = (int) (cardImg.getWidth() * scale);
+                    int drawH = (int) (cardImg.getHeight() * scale);
+                    int drawX = (w - drawW) / 2;
+                    int drawY = (h - drawH) / 2;
+                    g2.drawImage(cardImg, drawX, drawY, drawW, drawH, null);
+                } else {
+                    GradientPaint gp = new GradientPaint(0, 0, new Color(30, 40, 70), 0, h, new Color(15, 20, 35));
+                    g2.setPaint(gp);
+                    g2.fillRect(0, 0, w, h);
                 }
 
-                // 3. Draw Fluffy White Cloud
-                g2.setColor(new Color(255, 255, 255, 220));
-                g2.fillRoundRect(50, 100, 70, 26, 20, 20);
-                g2.fillOval(65, 88, 28, 28);
-                g2.fillOval(80, 92, 22, 22);
+                // Dark gradient overlay at bottom for high text contrast
+                GradientPaint bottomGrad = new GradientPaint(
+                        0, h - 220, new Color(0, 0, 0, 0),
+                        0, h, new Color(10, 15, 30, 210)
+                );
+                g2.setPaint(bottomGrad);
+                g2.fillRect(0, h - 220, w, 220);
 
-                // 4. Mascot Shadow Base
-                int centerX = w / 2;
-                int potBaseY = 320;
-                g2.setColor(new Color(230, 205, 195));
-                g2.fillOval(centerX - 95, potBaseY + 68, 190, 22);
+                // Top subtle dark gradient for brand badge
+                GradientPaint topGrad = new GradientPaint(
+                        0, 0, new Color(10, 15, 30, 160),
+                        0, 85, new Color(0, 0, 0, 0)
+                );
+                g2.setPaint(topGrad);
+                g2.fillRect(0, 0, w, 85);
 
-                // 5. Draw Cute Flower Pot with blushing face
-                int potX = centerX - 60;
-                int potY = potBaseY;
-                int potW = 120;
-                int potH = 75;
-
-                // Pot Body (Terracotta Coral)
-                g2.setColor(new Color(245, 115, 85));
-                int[] potXPoints = {potX, potX + potW, potX + potW - 12, potX + 12};
-                int[] potYPoints = {potY + 12, potY + 12, potY + potH, potY + potH};
-                g2.fillPolygon(potXPoints, potYPoints, 4);
-
-                // Pot Rim
-                g2.fillRoundRect(potX - 6, potY, potW + 12, 16, 8, 8);
-
-                // Mascot Blushing Face
-                int faceY = potY + 38;
-                // Eyes
-                g2.setColor(new Color(35, 35, 45));
-                g2.fillOval(centerX - 24, faceY, 7, 7);
-                g2.fillOval(centerX + 17, faceY, 7, 7);
-                // Catchlight in eyes
-                g2.setColor(Color.WHITE);
-                g2.fillOval(centerX - 22, faceY + 1, 2, 2);
-                g2.fillOval(centerX + 19, faceY + 1, 2, 2);
-                // Cute Smile
-                g2.setColor(new Color(40, 40, 50));
-                g2.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawArc(centerX - 8, faceY + 4, 16, 12, 200, 140);
-                // Pink Blushing Cheeks
-                g2.setColor(new Color(255, 140, 140, 180));
-                g2.fillOval(centerX - 35, faceY + 6, 12, 8);
-                g2.fillOval(centerX + 23, faceY + 6, 12, 8);
-
-                // 6. Draw Sprouting Green Leaves
-                g2.setColor(new Color(56, 142, 60));
-                // Center stem & leaf
-                g2.setStroke(new BasicStroke(4.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(centerX, potY, centerX, potY - 55);
-                g2.fillOval(centerX - 12, potY - 80, 24, 38);
-
-                // Left leaf
+                // Brand badge on top-left of image
                 g2.setColor(new Color(76, 175, 80));
-                g2.fillOval(centerX - 48, potY - 58, 42, 20);
-                // Right leaf
-                g2.fillOval(centerX + 6, potY - 58, 42, 20);
+                int[] xPoints = {30, 37, 30, 23};
+                int[] yPoints = {26, 34, 42, 34};
+                g2.fillPolygon(xPoints, yPoints, 4);
 
-                // 7. Little Blue Watering Can
-                int canX = centerX - 105;
-                int canY = potBaseY + 20;
-                g2.setColor(new Color(88, 145, 235));
-                g2.fillRoundRect(canX, canY, 28, 30, 8, 8);
-                // Spout
-                g2.setStroke(new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawLine(canX + 28, canY + 18, canX + 44, canY + 10);
-                // Water drops
-                g2.setColor(new Color(130, 180, 255));
-                g2.fillOval(canX + 46, canY + 12, 4, 6);
-                g2.fillOval(canX + 50, canY + 16, 3, 5);
-
-                // 8. Sparkle Stars
-                g2.setColor(new Color(255, 120, 160));
-                drawStar(g2, centerX - 85, potBaseY - 20, 6);
-                drawStar(g2, centerX + 80, potBaseY - 10, 7);
-
-                // 9. Pill Badge at the bottom
-                int pillW = 260;
-                int pillH = 34;
-                int pillX = (w - pillW) / 2;
-                int pillY = h - 65;
                 g2.setColor(Color.WHITE);
-                g2.fillRoundRect(pillX, pillY, pillW, pillH, 17, 17);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 16));
+                g2.drawString("UniTrack", 45, 39);
 
-                g2.setColor(new Color(40, 45, 55));
+                g2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                g2.setColor(new Color(220, 225, 240));
+                g2.drawString("Smart Academic Calendar", 45, 54);
+
+                // University Title on bottom of card
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
+                g2.drawString("United International University", 26, h - 105);
+
+                g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                g2.setColor(new Color(200, 210, 230));
+                g2.drawString("Connecting campus milestones & personal study tasks", 26, h - 86);
+
+                // Pill Badge at bottom
+                int pillW = 270;
+                int pillH = 32;
+                int pillX = 26;
+                int pillY = h - 56;
+                g2.setColor(new Color(255, 255, 255, 235));
+                g2.fillRoundRect(pillX, pillY, pillW, pillH, 16, 16);
+
+                g2.setColor(new Color(30, 35, 45));
                 g2.setFont(UIUtils.FONT_SMALL_BOLD);
-                FontMetrics fm = g2.getFontMetrics();
-                String badgeText = "412 academic tasks completed on time";
-                int tx = pillX + (pillW - fm.stringWidth(badgeText)) / 2;
-                int ty = pillY + (pillH - fm.getHeight()) / 2 + fm.getAscent();
-                g2.drawString(badgeText, tx, ty);
+                g2.drawString("412 academic tasks completed on time", pillX + 16, pillY + 20);
 
                 g2.dispose();
-            }
-
-            private void drawStar(Graphics2D g2, int x, int y, int size) {
-                g2.drawLine(x - size, y, x + size, y);
-                g2.drawLine(x, y - size, x, y + size);
             }
         };
         leftPanel.setOpaque(false);
 
         // ----------------------------------------------------
-        // RIGHT COLUMN: Clean Login Form
+        // RIGHT COLUMN: Clean Modern Login Form
         // ----------------------------------------------------
         JPanel rightPanel = new JPanel();
-        rightPanel.setOpaque(false);
+        rightPanel.setBackground(Color.WHITE);
         rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
-        rightPanel.setBorder(new EmptyBorder(38, 45, 35, 45));
+        rightPanel.setBorder(new EmptyBorder(34, 38, 30, 38));
 
         // Brand Logo: Vector Diamond + "UniTrack"
         JPanel brandPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
@@ -206,7 +210,7 @@ public class LoginView extends JPanel {
         brandPanel.add(diamondIcon);
         brandPanel.add(brandText);
 
-        // Title and Subtitle matching reference
+        // Title and Subtitle
         JLabel titleLabel = new JLabel("Hello again, scholar!");
         titleLabel.setFont(UIUtils.FONT_TITLE);
         titleLabel.setForeground(UIUtils.LOGIN_TEXT_PRIMARY);
@@ -222,7 +226,7 @@ public class LoginView extends JPanel {
 
         emailField = new ModernTextField("alex@uni.edu");
         emailField.setText("alex@uni.edu");
-        emailField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        emailField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 
         JLabel passLbl = new JLabel("Password");
         passLbl.setFont(UIUtils.FONT_SMALL_BOLD);
@@ -230,7 +234,7 @@ public class LoginView extends JPanel {
 
         passwordField = new ModernPasswordField("Enter password");
         passwordField.setText("pass123");
-        passwordField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        passwordField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 
         // Checkbox & Forgot row
         JPanel optionsRow = new JPanel(new BorderLayout());
@@ -251,9 +255,9 @@ public class LoginView extends JPanel {
         optionsRow.add(rememberBox, BorderLayout.WEST);
         optionsRow.add(forgotLabel, BorderLayout.EAST);
 
-        // Primary Action Button (Matching reference color & label)
+        // Primary Action Button
         ModernButton loginBtn = new ModernButton("Let's track →", UIUtils.LOGIN_ACCENT, UIUtils.LOGIN_ACCENT_HOVER);
-        loginBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        loginBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
         loginBtn.addActionListener(e -> executeLogin());
 
         // Error message label
@@ -287,26 +291,26 @@ public class LoginView extends JPanel {
         footerText.setForeground(new Color(150, 155, 165));
         footerText.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Assemble Right Panel with proper spacing
+        // Assemble Right Panel
         rightPanel.add(brandPanel);
-        rightPanel.add(Box.createVerticalStrut(14));
+        rightPanel.add(Box.createVerticalStrut(10));
         rightPanel.add(titleLabel);
         rightPanel.add(Box.createVerticalStrut(4));
         rightPanel.add(subtitleLabel);
-        rightPanel.add(Box.createVerticalStrut(20));
+        rightPanel.add(Box.createVerticalStrut(18));
 
         rightPanel.add(emailLbl);
-        rightPanel.add(Box.createVerticalStrut(6));
+        rightPanel.add(Box.createVerticalStrut(5));
         rightPanel.add(emailField);
-        rightPanel.add(Box.createVerticalStrut(12));
+        rightPanel.add(Box.createVerticalStrut(10));
 
         rightPanel.add(passLbl);
-        rightPanel.add(Box.createVerticalStrut(6));
+        rightPanel.add(Box.createVerticalStrut(5));
         rightPanel.add(passwordField);
         rightPanel.add(Box.createVerticalStrut(8));
 
         rightPanel.add(optionsRow);
-        rightPanel.add(Box.createVerticalStrut(16));
+        rightPanel.add(Box.createVerticalStrut(14));
 
         rightPanel.add(loginBtn);
         rightPanel.add(Box.createVerticalStrut(6));
@@ -317,12 +321,108 @@ public class LoginView extends JPanel {
         rightPanel.add(Box.createVerticalStrut(6));
         rightPanel.add(footerText);
 
-        // Add both panels into Main Card
+        // Assemble Main Card
         mainCard.add(leftPanel);
         mainCard.add(rightPanel);
 
-        // Center card in panel
-        add(mainCard);
+        // Outer wrapper for top controls and centered card
+        JPanel outerWrapper = new JPanel(new BorderLayout());
+        outerWrapper.setOpaque(false);
+
+        // Top toolbar with View Switcher (Night Bridge / Day Campus)
+        JPanel topToolBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 18, 14));
+        topToolBar.setOpaque(false);
+
+        JButton bgSwitchBtn = new JButton("Night Bridge");
+        bgSwitchBtn.setFont(UIUtils.FONT_SMALL_BOLD);
+        bgSwitchBtn.setForeground(Color.WHITE);
+        bgSwitchBtn.setBackground(new Color(20, 25, 45, 190));
+        bgSwitchBtn.setFocusPainted(false);
+        bgSwitchBtn.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(255, 255, 255, 90), 1, true),
+                new EmptyBorder(5, 14, 5, 14)
+        ));
+        bgSwitchBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        bgSwitchBtn.addActionListener(e -> {
+            isNightBackground = !isNightBackground;
+            bgSwitchBtn.setText(isNightBackground ? "Night Bridge" : "Day Campus");
+            repaint();
+        });
+
+        topToolBar.add(bgSwitchBtn);
+        outerWrapper.add(topToolBar, BorderLayout.NORTH);
+
+        // Center GridBag for the card
+        JPanel cardCenter = new JPanel(new GridBagLayout());
+        cardCenter.setOpaque(false);
+        cardCenter.add(mainCard);
+        outerWrapper.add(cardCenter, BorderLayout.CENTER);
+
+        setLayout(new BorderLayout());
+        add(outerWrapper, BorderLayout.CENTER);
+    }
+
+    /**
+     * Paints the background image covering the full screen with an atmospheric overlay
+     */
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g.create();
+        UIUtils.enableAntiAliasing(g2);
+
+        int w = getWidth();
+        int h = getHeight();
+
+        BufferedImage activeBg = isNightBackground ? nightBridgeImage : dayCampusImage;
+
+        if (activeBg != null) {
+            double scale = Math.max((double) w / activeBg.getWidth(), (double) h / activeBg.getHeight());
+            int drawW = (int) (activeBg.getWidth() * scale);
+            int drawH = (int) (activeBg.getHeight() * scale);
+            int drawX = (w - drawW) / 2;
+            int drawY = (h - drawH) / 2;
+            g2.drawImage(activeBg, drawX, drawY, drawW, drawH, null);
+
+            // Ambient dark atmospheric overlay
+            g2.setColor(new Color(12, 16, 28, 125));
+            g2.fillRect(0, 0, w, h);
+
+            // Subtle vignette around screen borders
+            RadialGradientPaint vignette = new RadialGradientPaint(
+                    w / 2.0f, h / 2.0f, Math.max(w, h) * 0.7f,
+                    new float[]{0.0f, 0.8f, 1.0f},
+                    new Color[]{new Color(0, 0, 0, 0), new Color(0, 0, 0, 60), new Color(0, 0, 0, 160)}
+            );
+            g2.setPaint(vignette);
+            g2.fillRect(0, 0, w, h);
+        } else {
+            GradientPaint gp = new GradientPaint(0, 0, new Color(25, 30, 50), 0, h, new Color(12, 15, 25));
+            g2.setPaint(gp);
+            g2.fillRect(0, 0, w, h);
+        }
+
+        g2.dispose();
+    }
+
+    private void loadReferencePhotos() {
+        try {
+            // 1. Load Night Bridge photo ('Login Page Photo.jpg')
+            File f1 = new File("Resource/Reference Immages/Login Page Photo.jpg");
+            if (!f1.exists()) f1 = new File("Resource/Login Page Photo.jpg");
+            if (f1.exists()) {
+                nightBridgeImage = ImageIO.read(f1);
+            }
+
+            // 2. Load Day Campus aerial photo
+            File f2 = new File("Resource/Reference Immages/808930099_1052021000986872_7495257778687809139_n.jpg");
+            if (!f2.exists()) f2 = new File("Resource/808930099_1052021000986872_7495257778687809139_n.jpg");
+            if (f2.exists()) {
+                dayCampusImage = ImageIO.read(f2);
+            }
+        } catch (Exception e) {
+            System.err.println("Notice: Could not load background photo: " + e.getMessage());
+        }
     }
 
     private JButton createRolePillButton(String roleName, String email, String pass) {
